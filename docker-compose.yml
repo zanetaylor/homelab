@@ -1,0 +1,302 @@
+########################### NETWORKS
+# You may customize the network subnet (192.168.90.0/24) below as you please.
+# Docker Compose version 3.5 or higher required to define networks this way.
+ 
+networks:
+  default:
+    driver: bridge
+  traefik_proxy:
+    name: traefik_proxy
+    driver: bridge
+    #ipam:
+    #  config:
+    #    - subnet: 192.168.50.240/32
+
+########################### EXTENSION FIELDS
+# Helps eliminate repetition of sections
+# More Info on how to use this: https://github.com/htpcBeginner/docker-traefik/pull/228
+ 
+# Common environment values
+x-environment: &default-tz-puid-pgid
+  TZ: $TZ
+  PUID: $PUID
+  PGID: $PGID
+ 
+# Keys common to some of the core services that we always to automatically restart on failure
+x-common-keys-core: &common-keys-core
+  networks:
+    - traefik_proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: always
+ 
+# Keys common to some of the dependent services/apps
+x-common-keys-apps: &common-keys-apps
+  networks:
+    - traefik_proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+ 
+# Keys common to some of the services in media-services.txt
+x-common-keys-media: &common-keys-media
+  networks:
+    - traefik_proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: "no"
+
+########################### SERVICES
+services:
+
+  portainer:
+    <<: *common-keys-core # See EXTENSION FIELDS at the top
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    command: -H unix:///var/run/docker.sock # Use Docker Socket Proxy and comment this line out, for improved security.
+    # command: -H tcp://socket-proxy:2375 # Use this instead, if you have Socket Proxy enabled.
+   # networks:
+     # traefik_proxy:
+       # ipv4_address: 192.168.50.241
+    ports: # Comment out if using Nginx Proxy Manager to access portainer WebUI.
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy and comment this line out, for improved security.
+      - $DOCKERDIR/appdata/portainer/data:/data # Change to local directory if you want to save/transfer config locally.
+    environment:
+      <<: *default-tz-puid-pgid
+
+  watchtower:
+    <<: *common-keys-core # See EXTENSION FIELDS at the top
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Use Docker Socket Proxy and comment this line for improved security.
+    environment:
+      <<: *default-tz-puid-pgid
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_REMOVE_VOLUMES: "true"
+      WATCHTOWER_INCLUDE_STOPPED: "true"
+      WATCHTOWER_NO_STARTUP_MESSAGE: "false"
+      WATCHTOWER_SCHEDULE: "0 30 12 * * *" # Everyday at 12:30
+      # DOCKER_HOST: tcp://socket-proxy:2375 # Use this if you have Socket Proxy enabled.
+      DOCKER_API_VERSION: "1.40"
+
+  tailscale:
+    # <<: *common-keys-core # See EXTENSION FIELDS at the top
+    container_name: tailscale
+    hostname: dadhaus
+    image: tailscale/tailscale:stable
+    volumes:
+      - $DOCKERDIR/appdata/tailscale:/var/lib # State data will be stored in this directory
+      - /dev/net/tun:/dev/net/tun # Required for tailscale to work
+    cap_add: # Required for tailscale to work
+      - net_admin
+      - sys_module
+    command: tailscaled
+    network_mode: host
+    environment:
+      <<: *default-tz-puid-pgid
+      TS_AUTHKEY: $TS_AUTHKEY
+      # TS_ROUTES: tailscale --advertise-routes=192.168.50.240/32
+      TS_SOCKET: $TS_SOCKET # Specifying the /var/lib/tailscale/tailscaled.sock location allows use of standard Tailscale commands 
+      TS_EXTRA_ARGS: $TS_EXTRA_ARGS # Add any other supported arguments in the docker commandline style: e.g. --advertise-exit-node
+      TS_STATE_DIR: $TS_STATE_DIR # Required to create a persistent container state that will survive reboots
+    privileged: true
+
+  gluetun:
+    <<: *common-keys-core # See EXTENSION FIELDS at the top
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - $DOCKERDIR/appdata/gluetun:/gluetun
+    environment:
+      <<: *default-tz-puid-pgid
+      # Wireguard
+      VPN_SERVICE_PROVIDER: custom
+      VPN_TYPE: wireguard
+      WIREGUARD_PRIVATE_KEY: $PV_WG_PRIVATE_KEY
+      WIREGUARD_ADDRESSES: 10.2.0.2/32
+      VPN_ENDPOINT_IP: 193.148.18.58
+      VPN_ENDPOINT_PORT: 51820
+      WIREGUARD_PUBLIC_KEY: %%%%
+    ports:
+      - 8112:8112 # deluge
+      - 6881:6881 # deluge
+      - 6881:6881/udp # deluge
+
+  ############################# UTILITIES
+
+  dozzle:
+    <<: *common-keys-apps # See EXTENSION FIELDS at the top
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    ports:
+      - "8081:8080" # qBittorrent is using port 8080. 
+    environment:
+      <<: *default-tz-puid-pgid
+      DOZZLE_LEVEL: info
+      DOZZLE_TAILSIZE: 300
+      DOZZLE_FILTER: "status=running"
+      # DOZZLE_FILTER: "label=log_me" # limits logs displayed to containers with this label.
+      # DOCKER_HOST: tcp://socket-proxy:2375 # Use this instead if you have Socket Proxy enabled.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  dockergc:
+    <<: *common-keys-apps # See EXTENSION FIELDS at the top
+    image: clockworksoul/docker-gc-cron:latest
+    container_name: docker-gc
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Use Docker Socket Proxy and comment this line for improved security.
+      - $DOCKERDIR/appdata/docker-gc/docker-gc-exclude:/etc/docker-gc-exclude # Create empty file
+    environment:
+      <<: *default-tz-puid-pgid
+      CRON: 0 0 0 * * ? # Everyday at midnight. Previously 0 0 * * *
+      FORCE_IMAGE_REMOVAL: 1
+      FORCE_CONTAINER_REMOVAL: 0
+      GRACE_PERIOD_SECONDS: 604800
+      DRY_RUN: 0
+      CLEAN_UP_VOLUMES: 1
+
+  deluge:
+    image: lscr.io/linuxserver/deluge:latest
+    container_name: deluge
+    restart: unless-stopped
+    environment:
+      <<: *default-tz-puid-pgid
+      DELUGE_LOGLEVEL: error #optional
+    volumes:
+      - $DOCKERDIR/appdata/deluge/config:/config
+      - $DATADIR/downloads:/downloads
+    # ports:
+    #   - 8112:8112
+    #   - 6881:6881
+    #   - 6881:6881/udp
+    network_mode: "service:gluetun"
+
+  ############################# MEDIA
+
+  plex:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: plexinc/pms-docker:public
+    container_name: plex
+    ports:
+      - "32400:32400/tcp"
+      # - "3005:3005/tcp"
+      - "8324:8324/tcp"
+      - "32469:32469/tcp"
+      - "1900:1900/udp" # Conflicts with xTeVe and Synology default ports
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+      # - "33400:33400" # If you use Plex Web Tools
+    devices:
+     - /dev/dri:/dev/dri # for harware transcoding
+    volumes:
+      - $DOCKERDIR/appdata/plex:/config
+      - $DATADIR/media:/media
+      - /dev/shm:/transcode
+    environment:
+      <<: *default-tz-puid-pgid
+      HOSTNAME: "dockerPlex"
+      PLEX_CLAIM_FILE: $PLEX_CLAIM
+      PLEX_UID: $PUID
+      PLEX_GID: $PGID
+      ADVERTISE_IP: http://$SERVER_IP:32400/
+
+  # Prowlarr - Torrent proxy
+  prowlarr:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    ports:
+      - "9696:9696"
+    volumes:
+      - $DOCKERDIR/appdata/prowlarr:/config
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Set url_base in lidarr settings if using PathPrefix
+  radarr:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/radarr:latest # latest tag was causing "Error parsing column 45"
+    container_name: radarr
+    # networks:
+    #   npm_proxy:
+    #     ipv4_address: 192.168.89.164
+    ports:
+      - "7878:7878"
+    volumes:
+      - $DOCKERDIR/appdata/radarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media:/data/media
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Set url_base in lidarr settings if using PathPrefix
+  sonarr:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    # networks:
+    #   npm_proxy:
+    #     ipv4_address: 192.168.89.167
+    ports:
+      - "8989:8989"
+    volumes:
+      - $DOCKERDIR/appdata/sonarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media:/data/media
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Set url_base in lidarr settings if using PathPrefix
+  lidarr:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    ports:
+      - "8686:8686"
+    volumes:
+      - $DOCKERDIR/appdata/lidarr:/config
+      - $DATADIR:/data
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Set HTTP Root in Tautulli settings if using PathPrefix
+  tautulli:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/tautulli:latest
+    container_name: tautulli
+    ports:
+      - "8181:8181"
+    volumes:
+      - $DOCKERDIR/appdata/tautulli/config:/config
+      - $DOCKERDIR/appdata/plex/Library/Application Support/Plex Media Server/Logs:/logs:ro # For tautulli Plex log viewer
+    environment:
+      <<: *default-tz-puid-pgid
+
+  calibre-web:
+    <<: *common-keys-media # See EXTENSION FIELDS at the top
+    image: lscr.io/linuxserver/calibre-web:latest
+    container_name: calibre-web
+    environment:
+      <<: *default-tz-puid-pgid
+      DOCKER_MODS: linuxserver/mods:universal-calibre #optional
+      OAUTHLIB_RELAX_TOKEN_SCOPE: 1 #optional
+    volumes:
+      - $DOCKERDIR/appdata/calibre/config:/config
+      - $DATADIR/media/books:/books
+    ports:
+      - "8083:8083"
