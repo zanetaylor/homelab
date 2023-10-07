@@ -20,3 +20,7 @@
 ## Deluge
 
 - https://drfrankenstein.co.uk/2022/09/26/deluge-with-gluetun-vpn-in-docker-on-a-synology-nas/
+
+# Servarr apps
+
+- https://trash-guides.info/
