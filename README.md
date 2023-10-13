@@ -3,6 +3,10 @@
 - https://www.smarthomebeginner.com/docker-media-server-2022/
 - https://github.com/htpcBeginner
 
+## Proxmox
+
+- https://www.golinuxcloud.com/extend-resize-primary-partition-non-lvm-linux/
+
 ## DNS
 
 - https://github.com/timothymiller/cloudflare-ddns
