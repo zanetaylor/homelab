@@ -1,3 +1,5 @@
+version: "3.9"
+
 ########################### NETWORKS
 # You may customize the network subnet (192.168.90.0/24) below as you please.
 # Docker Compose version 3.5 or higher required to define networks this way.
@@ -8,9 +10,9 @@ networks:
   traefik_proxy:
     name: traefik_proxy
     driver: bridge
-    #ipam:
+    # ipam:
     #  config:
-    #    - subnet: 192.168.50.240/32
+    #    - subnet: 192.168.60.0/24
 
 ########################### EXTENSION FIELDS
 # Helps eliminate repetition of sections
@@ -44,7 +46,7 @@ x-common-keys-media: &common-keys-media
     - traefik_proxy
   security_opt:
     - no-new-privileges:true
-  restart: "no"
+  restart: unless-stopped
 
 ########################### SERVICES
 services:
@@ -58,13 +60,19 @@ services:
    # networks:
      # traefik_proxy:
        # ipv4_address: 192.168.50.241
-    ports: # Comment out if using Nginx Proxy Manager to access portainer WebUI.
-      - "9443:9443"
+    # ports: # Comment out if using Nginx Proxy Manager to access portainer WebUI.
+    #   - "9443:9443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy and comment this line out, for improved security.
       - $DOCKERDIR/appdata/portainer/data:/data # Change to local directory if you want to save/transfer config locally.
     environment:
       <<: *default-tz-puid-pgid
+    labels:
+      - "traefik.enable=true"
+      ## HTTP Routers
+      - "traefik.http.routers.portainer-rtr.entrypoints=https"
+      - "traefik.http.routers.portainer-rtr.rule=Host(`prtnr.$DOMAINNAME_CLOUD_SERVER`)"
+      - "traefik.http.routers.portainer-rtr.tls=true"
 
   watchtower:
     <<: *common-keys-core # See EXTENSION FIELDS at the top
