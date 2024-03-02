@@ -28,3 +28,7 @@
 ## Servarr apps
 
 - https://trash-guides.info/
+
+## Misc.
+
+- https://engineerworkshop.com/blog/automatically-resolve-nfs-stale-file-handle-errors-in-ubuntu-linux/
