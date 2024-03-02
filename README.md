@@ -29,6 +29,13 @@
 
 - https://trash-guides.info/
 
+## File system
+
+- https://perfectmediaserver.com/02-tech-stack/mergerfs/
+- https://github.com/trapexit/mergerfs
+- http://www.snapraid.it/
+- https://github.com/Chronial/snapraid-runner
+
 ## Misc.
 
 - https://engineerworkshop.com/blog/automatically-resolve-nfs-stale-file-handle-errors-in-ubuntu-linux/
