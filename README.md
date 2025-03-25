@@ -1,3 +1,22 @@
+# Apps included
+
+- Radarr
+- Sonarr
+- Lidarr
+- Readarr
+- Prowlarr
+- Deluge
+- Calibre Web
+- Plex
+- Tautulli
+- Homepage
+- Dozzle
+- Watchtower
+- Docker GC
+- Cloudflare DDNS
+- Traefik
+- Gluetun
+
 # References
 
 - https://www.smarthomebeginner.com/docker-media-server-2022/
