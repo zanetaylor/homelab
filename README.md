@@ -1,4 +1,8 @@
-# Apps included
+# Services
+
+Running on single Proxmox node...
+
+# Docker VM
 
 - Radarr
 - Sonarr
@@ -7,7 +11,6 @@
 - Prowlarr
 - Deluge
 - Calibre Web
-- Plex
 - Tautulli
 - Homepage
 - Dozzle
@@ -17,7 +20,16 @@
 - Traefik
 - Gluetun
 
+# Single service LXCs
+
+- Plex
+- Adguard
+- Unbound
+- Home Assistant
+
 # References
+
+## General
 
 - https://www.smarthomebeginner.com/docker-media-server-2022/
 - https://github.com/htpcBeginner
@@ -30,6 +42,7 @@
 
 - https://github.com/timothymiller/cloudflare-ddns
 - https://timknowsbest.com/free-dynamic-dns
+- https://homelabstarter.com/homelab-unbound-dns-resolver/#unbound-configuration
 
 ## Traefik
 - https://www.smarthomebeginner.com/traefik-docker-compose-guide-2022/
